@@ -11,7 +11,7 @@ use std::ptr::{NonNull, self};
 use std::mem;
 use std::ops::Deref;
 use std::ops::DerefMut;
-use std::heap::{Alloc, Layout, Heap};
+use std::heap::{Alloc, Layout, Global};
 use std::alloc::oom;
 
 impl<T> DerefMut for Vec<T> {
@@ -63,14 +63,14 @@ impl<T> Vec<T> {
             // current API requires us to specify size and alignment manually.
 
             let (new_cap, ptr) = if self.cap == 0 {
-                let ptr = Heap.alloc(Layout::array::<T>(1).unwrap());
+                let ptr = Global.alloc(Layout::array::<T>(1).unwrap());
                 (1, ptr)
             } else {
                 // as an invariant, we can assume that `self.cap < isize::MAX`,
                 // so this doesn't need to be checked.
                 let new_cap = self.cap * 2;
 
-                let ptr = Heap.realloc(NonNull::from(self.ptr).as_opaque(),
+                let ptr = Global.realloc(NonNull::from(self.ptr).as_opaque(),
                                        Layout::array::<T>(self.cap).unwrap(),
                                        Layout::array::<T>(new_cap).unwrap().size());
                 (new_cap, ptr)
@@ -79,7 +79,7 @@ impl<T> Vec<T> {
             // If allocate or reallocate fail, we'll get `null` back
             let ptr = match ptr {
                Ok(ptr) => ptr,
-               Err(err) => oom(),
+               Err(_err) => oom(),
             };
 
             self.ptr = NonNull::new_unchecked(ptr.as_ptr() as *mut _);
@@ -172,7 +172,7 @@ impl<T> Drop for Vec<T> {
         if self.cap != 0 && elem_size != 0 {
             unsafe {
                 println!("drop!");
-                Heap.dealloc(NonNull::from(self.ptr).as_opaque(),
+                Global.dealloc(NonNull::from(self.ptr).as_opaque(),
                              Layout::array::<T>(self.cap).unwrap());
             }
         }

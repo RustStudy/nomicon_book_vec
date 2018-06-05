@@ -4,7 +4,7 @@ use std::ptr::{NonNull, self};
 use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::marker::PhantomData;
-use std::heap::{Alloc, Layout, Heap};
+use std::heap::{Alloc, Layout, Global};
 use std::alloc::oom;
 
 #[derive(Debug)]
@@ -30,11 +30,11 @@ impl<T> RawVec<T> {
             assert!(elem_size != 0, "capacity overflow");
 
             let (new_cap, ptr) = if self.cap == 0 {
-                let ptr = Heap.alloc(Layout::array::<T>(1).unwrap());
+                let ptr = Global.alloc(Layout::array::<T>(1).unwrap());
                 (1, ptr)
             } else {
                 let new_cap = 2 * self.cap;
-                let ptr = Heap.realloc(NonNull::from(self.ptr).as_opaque(),
+                let ptr = Global.realloc(NonNull::from(self.ptr).as_opaque(),
                                        Layout::array::<T>(self.cap).unwrap(),
                                        Layout::array::<T>(new_cap).unwrap().size());
                 (new_cap, ptr)
@@ -43,7 +43,7 @@ impl<T> RawVec<T> {
             // If allocate or reallocate fail, oom
             let ptr = match ptr {
                 Ok(ptr) => ptr,
-                Err(err) => oom(),
+                Err(_err) => oom(),
             };
 
             self.ptr = NonNull::new_unchecked(ptr.as_ptr() as *mut _);
@@ -58,7 +58,7 @@ impl<T> Drop for RawVec<T> {
         if self.cap != 0 && elem_size != 0 {
             unsafe {
                 println!("drop rawvec");
-                Heap.dealloc(NonNull::from(self.ptr).as_opaque(),
+                Global.dealloc(NonNull::from(self.ptr).as_opaque(),
                              Layout::array::<T>(self.cap).unwrap());
             }
         }
